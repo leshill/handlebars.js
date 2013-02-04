@@ -1088,13 +1088,8 @@ Compiler.prototype = {
 
     if (id.type === 'DATA') {
       this.DATA(id);
-    } else if (id.parts.length) {
-      this.ID(id);
     } else {
-      // Simplified ID for `this`
-      this.addDepth(id.depth);
-      this.opcode('getContext', id.depth);
-      this.opcode('pushContext');
+      this.ID(id);
     }
 
     this.opcode('resolvePossibleLambda');
@@ -1121,11 +1116,7 @@ Compiler.prototype = {
     if (!name) {
       this.opcode('pushContext');
     } else {
-      this.opcode('lookupOnContext', id.parts[0]);
-    }
-
-    for(var i=1, l=id.parts.length; i<l; i++) {
-      this.opcode('lookup', id.parts[i]);
+      this.opcode('resolveID', id.parts);
     }
   },
 
@@ -1523,17 +1514,6 @@ JavaScriptCompiler.prototype = {
     }
   },
 
-  // [lookupOnContext]
-  //
-  // On stack, before: ...
-  // On stack, after: currentContext[name], ...
-  //
-  // Looks up the value of `name` on the current context and pushes
-  // it onto the stack.
-  lookupOnContext: function(name) {
-    this.push(this.nameLookup('depth' + this.lastContext, name, 'context'));
-  },
-
   // [pushContext]
   //
   // On stack, before: ...
@@ -1556,19 +1536,6 @@ JavaScriptCompiler.prototype = {
 
     this.replaceStack(function(current) {
       return "typeof " + current + " === functionType ? " + current + ".apply(depth0) : " + current;
-    });
-  },
-
-  // [lookup]
-  //
-  // On stack, before: value, ...
-  // On stack, after: value[name], ...
-  //
-  // Replace the value on the stack with the result of looking
-  // up `name` on `value`
-  lookup: function(name) {
-    this.replaceStack(function(current) {
-      return current + " == null || " + current + " === false ? " + current + " : " + this.nameLookup(current, name, 'context');
     });
   },
 
@@ -1725,11 +1692,14 @@ JavaScriptCompiler.prototype = {
 
     var helperName = this.lastHelper = this.nameLookup('helpers', name, 'helper');
 
-    var nonHelper = this.nameLookup('depth' + this.lastContext, name, 'context');
     var nextStack = this.nextStack();
 
     this.source.push('if (' + nextStack + ' = ' + helperName + ') { ' + nextStack + ' = ' + nextStack + '.call(' + helper.callParams + '); }');
-    this.source.push('else { ' + nextStack + ' = ' + nonHelper + '; ' + nextStack + ' = typeof ' + nextStack + ' === functionType ? ' + nextStack + '.apply(depth0) : ' + nextStack + '; }');
+    this.source.push('else { ' + nextStack + ' = ');
+    this.lookupPath([name]);
+    this.source.push(this.popStack());
+    this.source.push(', ' + nextStack + ' = typeof ' + nextStack + ' === functionType ? ' + nextStack + '.apply(depth0) : ' + nextStack);
+    this.source.push('}');
   },
 
   // [invokePartial]
@@ -1745,9 +1715,37 @@ JavaScriptCompiler.prototype = {
     if (this.options.data) {
       params.push("data");
     }
-
     this.context.aliases.self = "this";
     this.push("self.invokePartial(" + params.join(", ") + ")");
+  },
+
+  // [resolveID]
+  //
+  // On stack before: ...
+  // On stack after: result of lookup on context
+  //
+  // This operation lookups up an ID/path on the context
+  resolveID: function(parts) {
+    this.lookupPath(parts);
+  },
+
+  // Lookup a path on the context
+  //
+  // The default implmentation looks up the the path on the appropriately
+  // scoped context, and resolves the result as a lambda if it is a function.
+  //
+  lookupPath: function(parts) {
+    var l = parts.length;
+
+    this.push(this.nameLookup('depth' + this.lastContext, parts[0], 'context'));
+
+    if (l > 1) {
+      for(var i=1; i < l; ++i) {
+        this.replaceStack(function(current) {
+          return current + ' == null || ' + current + ' === false ? ' + current + ' : ' + this.nameLookup(current, parts[i], 'context');
+        });
+      }
+    }
   },
 
   // [assignToHash]
