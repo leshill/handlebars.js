@@ -1257,6 +1257,84 @@ test("when inside a block in String mode, .. passes the appropriate context in t
   equals(result, "STOP ME FROM READING HACKER NEWS I need-a dad.joke wot", "Proper context variable output");
 });
 
+suite('escape option is passed to helpers');
+
+test('helpers receive the escape option when the mustache is escaping', function() {
+  var template = CompilerContext.compile('{{goodbye cruel="CRUEL" times=12}}');
+
+  var escapeExpression, helpers = {
+    goodbye: function(options) {
+      escapeExpression = options.hasOwnProperty('escapeExpression') ? 'escape' : 'no escape';
+      return options.escaped ? 'ESCAPED' : 'UNESCAPED';
+    }
+  };
+
+  var result = template({}, {helpers: helpers});
+
+  equals(result, 'ESCAPED', 'Helper was not marked as escaped');
+  equals(escapeExpression, 'escape', 'Helper did not received escapeExpression');
+});
+
+test('block helpers do not receive the escape option even though the mustache appears to be escaping', function() {
+  var template = CompilerContext.compile('{{#goodbye cruel="CRUEL" times=12}}WORLD{{/goodbye}}');
+
+  var escapeExpression, helpers = {
+    goodbye: function(options) {
+      escapeExpression = options.hasOwnProperty('escapeExpression') ? 'escape' : 'no escape';
+      return options.escaped ? 'ESCAPED' : 'UNESCAPED';
+    }
+  };
+
+  var result = template({}, {helpers: helpers});
+  equals(result, 'UNESCAPED', 'Helper was marked as escaped');
+  equals(escapeExpression, 'escape', 'Helper did not received escapeExpression');
+});
+
+test('ambiguous helpers receive the escape option when the mustache is escaping', function() {
+  var template = CompilerContext.compile('{{goodbye}}');
+
+  var escapeExpression, helpers = {
+    goodbye: function(options) {
+      escapeExpression = options.hasOwnProperty('escapeExpression') ? 'escape' : 'no escape';
+      return options.escaped ? 'ESCAPED' : 'UNESCAPED';
+    }
+  };
+
+  var result = template({}, {helpers: helpers});
+  equals(result, 'ESCAPED', 'Helper was not marked as escaped');
+  equals(escapeExpression, 'escape', 'Helper did not received escapeExpression');
+});
+
+test('helpers do not receive the escape option when the mustache is not escaping', function() {
+  var template = CompilerContext.compile('{{{goodbye cruel="CRUEL" times=12}}}');
+
+  var escapeExpression, helpers = {
+    goodbye: function(options) {
+      escapeExpression = options.hasOwnProperty('escapeExpression') ? 'escape' : 'no escape';
+      return options.escaped ? 'ESCAPED' : 'UNESCAPED';
+    }
+  };
+
+  var result = template({}, {helpers: helpers});
+  equals(result, 'UNESCAPED', 'Helper was marked as escaped');
+  equals(escapeExpression, 'escape', 'Helper did not received escapeExpression');
+});
+
+test('ambiguous helpers do not receive the escape option when the mustache is not escaping', function() {
+  var template = CompilerContext.compile('{{{goodbye}}}');
+
+  var escapeExpression, helpers = {
+    goodbye: function(options) {
+      escapeExpression = options.hasOwnProperty('escapeExpression') ? 'escape' : 'no escape';
+      return options.escaped ? 'ESCAPED' : 'UNESCAPED';
+    }
+  };
+
+  var result = template({}, {helpers: helpers});
+  equals(result, 'UNESCAPED', 'Helper was marked as escaped');
+  equals(escapeExpression, 'escape', 'Helper did not received escapeExpression');
+});
+
 suite("Regressions");
 
 test("GH-94: Cannot read property of undefined", function() {

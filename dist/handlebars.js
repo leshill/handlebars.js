@@ -988,6 +988,8 @@ Compiler.prototype = {
 
     var type = this.classifyMustache(mustache);
 
+    this.opcode('unescaped');
+
     if (type === "helper") {
       this.helperMustache(mustache, program, inverse);
     } else if (type === "simple") {
@@ -1054,6 +1056,12 @@ Compiler.prototype = {
   mustache: function(mustache) {
     var options = this.options;
     var type = this.classifyMustache(mustache);
+
+    if(mustache.escaped && !options.noEscape) {
+      this.opcode('escaped');
+    } else {
+      this.opcode('unescaped');
+    }
 
     if (type === "simple") {
       this.simpleMustache(mustache);
@@ -1499,6 +1507,26 @@ JavaScriptCompiler.prototype = {
     this.context.aliases.escapeExpression = 'this.escapeExpression';
 
     this.source.push(this.appendToBuffer("escapeExpression(" + this.popStack() + ")"));
+  },
+
+  // [escaped]
+  //
+  // On stack, before: ...
+  // On stack, after: ...
+  //
+  // The current mustache is escaped
+  escaped: function() {
+    this.helperEscaped = true;
+  },
+
+  // [unescaped]
+  //
+  // On stack, before: ...
+  // On stack, after: ...
+  //
+  // The current mustache is unescaped
+  unescaped: function() {
+    this.helperEscaped = false;
   },
 
   // [getContext]
@@ -2019,6 +2047,12 @@ JavaScriptCompiler.prototype = {
       options.push("contexts:[" + contexts.join(",") + "]");
       options.push("types:[" + types.join(",") + "]");
       options.push("hashTypes:hashTypes");
+    }
+
+    this.context.aliases.escapeExpression = 'this.escapeExpression';
+    options.push("escapeExpression:escapeExpression");
+    if (this.helperEscaped) {
+      options.push("escaped:true");
     }
 
     if(this.options.data) {
