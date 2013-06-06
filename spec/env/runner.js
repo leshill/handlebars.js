@@ -6,10 +6,6 @@ var errors = 0,
     testDir = path.dirname(__dirname),
     grep = process.argv[2];
 
-var files = fs.readdirSync(testDir)
-      .filter(function(name) { return (/.*\.js$/).test(name); })
-      .map(function(name) { return testDir + '/' + name; });
-
 run('./node', function() {
   run('./browser', function() {
     run('./runtime', function() {
@@ -18,9 +14,20 @@ run('./node', function() {
   });
 });
 
+function getFiles(env) {
+  var filter = function(name) { return (/.*\.js$/).test(name); };
+  if (env == './runtime') {
+    filter = function(name) { return (/.*\.js$/).test(name) && !('lookup_id.js').match(name); }
+  }
+
+  return fs.readdirSync(testDir)
+      .filter(filter)
+      .map(function(name) { return testDir + '/' + name; });
+};
 
 function run(env, callback) {
   var mocha = new Mocha();
+  files = getFiles(env);
   mocha.ui('bdd');
   mocha.files = files.slice();
   if (grep) {
